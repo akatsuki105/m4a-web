@@ -9,11 +9,11 @@ import { coverStyle } from "./components.tsx";
 const formatSize = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(bytes < 1024 * 1024 ? 2 : 0)} MB`;
 
 // ファイルを選ぶボタン (見た目は children)
+// accept で拡張子を絞らない: iOS は .gba を知らないので、絞るとファイルが全部選べなくなる (ROM でないものは読むときに弾く)
 export const FilePicker: FunctionComponent<{ open: (file: File) => void; class?: string; children: ComponentChildren }> = ({ open, class: cls, children }) => (
   <label class={cls}>
     <input
       type="file"
-      accept=".gba,.bin,.agb"
       hidden
       onChange={(e) => {
         const file = e.currentTarget.files?.[0];
