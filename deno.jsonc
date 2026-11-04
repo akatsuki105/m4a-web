@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact"
+  },
+  "imports": {
+    "preact": "npm:preact@^10"
+  },
+  "fmt": {
+    "options": {
+      "lineWidth": 1000 // I hate line wrapping
+    }
+  },
+  "tasks": {
+    "dev:bundle": "deno bundle --sourcemap --watch --platform=browser index.tsx -o bundle.js",
+    "dev:server": "deno run --allow-net --allow-read jsr:@std/http/file-server --host=localhost --port=8080",
+    "dev": {
+      "dependencies": ["dev:bundle", "dev:server"]
+    },
+    "bundle": "deno bundle --platform=browser index.tsx -o bundle.js"
+  }
+}
