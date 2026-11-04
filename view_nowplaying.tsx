@@ -8,7 +8,7 @@ import type { ROM } from "./rom.ts";
 import { type Player, type Song, songTitle } from "./use_player.ts";
 import { playback } from "./playback.ts";
 import { peekAnalyser } from "./audio.ts";
-import { coverStyle, hex8 } from "./components.tsx";
+import { coverStyle, songInfoRows } from "./components.tsx";
 import { CartridgeIcon } from "./icons.tsx";
 
 const BARS = 56;
@@ -119,7 +119,7 @@ const drawTracks = (canvas: HTMLCanvasElement, trace: Trace | null) => {
   }
 };
 
-export const NowPlaying: FunctionComponent<{ rom: ROM; player: Player; songs: Song[] }> = ({ rom, player, songs }) => {
+export const NowPlaying: FunctionComponent<{ rom: ROM; player: Player; songs: Song[]; defaultReverb: number }> = ({ rom, player, songs, defaultReverb }) => {
   const spectrum = useRef<HTMLCanvasElement>(null);
   const tracks = useRef<HTMLCanvasElement>(null);
   const trace = useRef(player.trace);
@@ -143,21 +143,32 @@ export const NowPlaying: FunctionComponent<{ rom: ROM; player: Player; songs: So
   const song = current === null ? null : songs[current];
   return (
     <aside class="nowplaying">
-      <div class="np-head">再生中</div>
+      <div class="np-head">Now playing</div>
       <div class="np-card">
         <div class="np-cover" style={coverStyle(rom.code || rom.name)}>
           <CartridgeIcon size={40} />
         </div>
         <div class="np-title">{current === null ? "—" : songTitle(current)}</div>
         <div class="np-sub">{rom.title || rom.name}</div>
-        {song?.header && <div class="np-meta mono">voicegroup {hex8(song.header.voicegroup)} · player {song.entry.ms}</div>}
+        {song && (
+          <table class="np-info">
+            <tbody>
+              {songInfoRows(song, defaultReverb).map(([k, v]) => (
+                <tr key={k}>
+                  <th>{k}</th>
+                  <td>{v}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
       <canvas ref={spectrum} class="np-spectrum" />
       <div class="np-section">
-        トラック
+        Tracks
         {player.trace && <span class="muted">· {player.trace.tracks}</span>}
       </div>
-      {player.trace ? <canvas ref={tracks} class="np-tracks" style={{ height: `${player.trace.tracks * ROW}px` }} /> : <p class="muted small">再生すると、トラックごとに鳴っている音を表示します</p>}
+      {player.trace ? <canvas ref={tracks} class="np-tracks" style={{ height: `${player.trace.tracks * ROW}px` }} /> : <p class="muted small">Play a song to see the notes on each track</p>}
     </aside>
   );
 };

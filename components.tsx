@@ -1,6 +1,7 @@
 // 画面のあちこちで使う小さな部品
 
 import type { FunctionComponent } from "preact";
+import type { Song } from "./use_player.ts";
 
 export const hex8 = (n: number) => `0x${n.toString(16).toUpperCase().padStart(8, "0")}`;
 
@@ -9,6 +10,24 @@ export const formatTime = (sec: number) => {
   const s = Math.max(0, Math.floor(sec));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = String(s % 60).padStart(2, "0");
   return h ? `${h}:${String(m).padStart(2, "0")}:${r}` : `${m}:${r}`;
+};
+
+// 曲ヘッダの情報 ([項目名, 値] の並び), 曲の「…」メニューと再生中の表示で同じものを出す
+// defaultReverb: 曲ヘッダがリバーブを指定していないときに掛かる値 (ROM の m4aSoundMode)
+export const songInfoRows = (song: Song, defaultReverb: number): [string, string | number][] => {
+  const h = song.header;
+  return [
+    ["header", hex8(song.entry.header)],
+    ...(h
+      ? [
+        ["tracks", h.trackCount],
+        ["voicegroup", hex8(h.voicegroup)],
+        ["priority", h.priority],
+        ["reverb", h.reverb & 0x80 ? h.reverb & 0x7F : `${defaultReverb} (ROM default)`],
+      ] as [string, string | number][]
+      : []),
+    ["player", song.entry.ms],
+  ];
 };
 
 // ROM ごとのジャケットの色 (ゲームコードなどから色相を決める)

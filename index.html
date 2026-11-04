@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -637,10 +637,20 @@
     .np-sub {
       color: var(--muted);
     }
-    .np-meta {
-      margin-top: 4px;
+    .np-info {
+      margin-top: 8px;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
       font-size: 12px;
+    }
+    .np-info th {
+      padding: 0 12px 0 0;
+      text-align: left;
+      font-weight: 500;
       color: var(--muted);
+    }
+    .np-info td {
+      padding: 0;
     }
     .np-spectrum {
       display: block;

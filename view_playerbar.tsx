@@ -9,7 +9,7 @@ import { setMuted, setVolume, useVolume } from "./audio.ts";
 import { coverStyle, formatTime } from "./components.tsx";
 import { CartridgeIcon, MuteIcon, NextIcon, PauseIcon, PlayIcon, PrevIcon, RepeatIcon, RepeatOneIcon, ShuffleIcon, VisualizerIcon, VolumeIcon } from "./icons.tsx";
 
-const REPEAT_LABEL = { off: "繰り返しなし (R)", all: "全曲を繰り返す (R)", one: "1 曲を繰り返す (R)" };
+const REPEAT_LABEL = { off: "Repeat off (R)", all: "Repeat all (R)", one: "Repeat one (R)" };
 
 // 再生位置: 再生中は描画のたびに読む
 const usePosition = (playing: boolean) => {
@@ -72,20 +72,20 @@ export const PlayerBar: FunctionComponent<{ rom: ROM | null; player: Player | nu
               </span>
             </>
           )
-          : <span class="pb-sub">{rom ? "曲を選んでください" : ""}</span>}
+          : <span class="pb-sub">{rom ? "Choose a song" : ""}</span>}
       </div>
       <div class="pb-center">
         <div class="pb-buttons">
-          <button type="button" class={player?.shuffle ? "icon-button on" : "icon-button"} disabled={none} title="シャッフル (S)" onClick={() => player?.setShuffle(!player.shuffle)}>
+          <button type="button" class={player?.shuffle ? "icon-button on" : "icon-button"} disabled={none} title="Shuffle (S)" onClick={() => player?.setShuffle(!player.shuffle)}>
             <ShuffleIcon size={18} />
           </button>
-          <button type="button" class="icon-button" disabled={none} title="前の曲 (P)" onClick={() => player?.prev()}>
+          <button type="button" class="icon-button" disabled={none} title="Previous (P)" onClick={() => player?.prev()}>
             <PrevIcon size={20} />
           </button>
-          <button type="button" class="play-round" disabled={none} title={playing ? "一時停止 (Space)" : "再生 (Space)"} onClick={() => player?.toggle()}>
+          <button type="button" class="play-round" disabled={none} title={playing ? "Pause (Space)" : "Play (Space)"} onClick={() => player?.toggle()}>
             {playing ? <PauseIcon size={20} /> : <PlayIcon size={20} />}
           </button>
-          <button type="button" class="icon-button" disabled={none} title="次の曲 (N)" onClick={() => player?.next()}>
+          <button type="button" class="icon-button" disabled={none} title="Next (N)" onClick={() => player?.next()}>
             <NextIcon size={20} />
           </button>
           <button type="button" class={player && player.repeat !== "off" ? "icon-button on" : "icon-button"} disabled={none} title={REPEAT_LABEL[player?.repeat ?? "off"]} onClick={() => player?.cycleRepeat()}>
@@ -94,18 +94,18 @@ export const PlayerBar: FunctionComponent<{ rom: ROM | null; player: Player | nu
         </div>
         <div class="pb-seek">
           <span class="time">{formatTime(current === null ? 0 : pos)}</span>
-          <Range class="seek" value={current === null ? 0 : pos} max={total} step={0.01} disabled={current === null} label="再生位置" onInput={(v) => player?.seek(v)} />
+          <Range class="seek" value={current === null ? 0 : pos} max={total} step={0.01} disabled={current === null} label="Seek" onInput={(v) => player?.seek(v)} />
           <span class="time">{current === null || !total ? "-:--" : formatTime(total)}</span>
         </div>
       </div>
       <div class="pb-right">
-        <button type="button" class={showVisualizer ? "icon-button on" : "icon-button"} title="再生中の表示" onClick={() => setShowVisualizer(!showVisualizer)}>
+        <button type="button" class={showVisualizer ? "icon-button on" : "icon-button"} title="Now playing view" onClick={() => setShowVisualizer(!showVisualizer)}>
           <VisualizerIcon size={18} />
         </button>
-        <button type="button" class="icon-button" title={muted ? "消音を解除 (M)" : "消音 (M)"} onClick={() => setMuted(!muted)}>
+        <button type="button" class="icon-button" title={muted ? "Unmute (M)" : "Mute (M)"} onClick={() => setMuted(!muted)}>
           {muted || volume === 0 ? <MuteIcon size={18} /> : <VolumeIcon size={18} />}
         </button>
-        <Range class="volume" value={muted ? 0 : volume} max={1} step={0.01} label="音量" onInput={setVolume} />
+        <Range class="volume" value={muted ? 0 : volume} max={1} step={0.01} label="Volume" onInput={setVolume} />
       </div>
     </footer>
   );

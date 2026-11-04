@@ -52,9 +52,9 @@ export const Sidebar: FunctionComponent<{
       <span class="brand-mark">♪</span> m4a-web
     </a>
     <div class="sidebar-head">
-      <span>ライブラリ</span>
+      <span>Library</span>
       <FilePicker open={open} class="icon-button">
-        <span title="ROM を追加">
+        <span title="Add a ROM">
           <PlusIcon size={18} />
         </span>
       </FilePicker>
@@ -67,7 +67,7 @@ export const Sidebar: FunctionComponent<{
             <Cover seed={current.rom.code || current.rom.name} size="s" />
             <span class="lib-text">
               <span class="lib-title">{current.rom.title || current.rom.name}</span>
-              <span class="lib-sub">保存していません</span>
+              <span class="lib-sub">Not saved</span>
             </span>
           </span>
         </li>
@@ -81,13 +81,13 @@ export const Sidebar: FunctionComponent<{
               <span class="lib-sub">{r.code || "?"} · {formatSize(r.size)}</span>
             </span>
           </button>
-          <button type="button" class="lib-remove" title="ライブラリから削除" onClick={() => remove(r)}>
+          <button type="button" class="lib-remove" title="Remove from library" onClick={() => remove(r)}>
             <CloseIcon size={14} />
           </button>
         </li>
       ))}
     </ul>
-    {saved.length === 0 && !current && <p class="sidebar-empty">開いた ROM はここに並びます</p>}
+    {saved.length === 0 && !current && <p class="sidebar-empty">ROMs you open will appear here</p>}
   </aside>
 );
 
@@ -96,9 +96,9 @@ export const DropZone: FunctionComponent<{ open: (file: File) => void; dragging:
     <div class="dropzone-icon">
       <CartridgeIcon size={40} />
     </div>
-    <h2>GBA の ROM をドロップ</h2>
-    <p>MP2K (m4a) のサウンドドライバを探して、曲を一覧にします</p>
-    <FilePicker open={open} class="button primary">ファイルを選ぶ</FilePicker>
-    <p class="muted small">ROM はブラウザの中だけで読み、どこにも送りません。開いた ROM はこのブラウザに保存し、左の一覧から開き直せます。</p>
+    <h2>Drop a GBA ROM</h2>
+    <p>Finds the MP2K (m4a) sound driver and lists its songs</p>
+    <FilePicker open={open} class="button primary">Choose a file</FilePicker>
+    <p class="muted small">The ROM is read only in your browser and never uploaded. ROMs you open are saved in this browser, so you can reopen them from the library.</p>
   </div>
 );

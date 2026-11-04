@@ -98,7 +98,7 @@ const App = () => {
   };
 
   const remove = (r: SavedROM) => {
-    if (!confirm(`「${r.title || r.name}」をライブラリから削除しますか？`)) return;
+    if (!confirm(`Remove "${r.title || r.name}" from the library?`)) return;
     deleteROM(r.id)
       .then(() => setLoaded((l) => (l && l.savedId === r.id ? { ...l, savedId: null } : l)))
       .catch((e) => setError(errorMessage(e)))
@@ -187,11 +187,11 @@ const App = () => {
             <PlayerBar rom={null} player={null} duration={0} showVisualizer={showVisualizer} setShowVisualizer={setShowVisualizer} />
           </>
         )}
-      {loaded && dragging && <div class="drop-overlay">ドロップして開く</div>}
+      {loaded && dragging && <div class="drop-overlay">Drop to open</div>}
       {error && (
         <div class="toast" role="alert">
           {error}
-          <button type="button" class="ghost small" onClick={() => setError(null)}>閉じる</button>
+          <button type="button" class="ghost small" onClick={() => setError(null)}>Close</button>
         </div>
       )}
     </div>

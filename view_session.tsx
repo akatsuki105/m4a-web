@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { encodeWav, type Engine, isRomPointer, measureSong, MIXER_RATES, readSongHeader, readSongTable, type RenderOptions, renderSong, type SongHeader } from "./m4a/mod.ts";
 import type { ROM } from "./rom.ts";
 import { type Player, type Song, songTitle, usePlayer } from "./use_player.ts";
-import { coverStyle, formatTime, hex8, NumberStepper } from "./components.tsx";
+import { coverStyle, formatTime, hex8, NumberStepper, songInfoRows } from "./components.tsx";
 import { CartridgeIcon, DownloadIcon, GearIcon, MoreIcon, PauseIcon, PlayIcon, ShuffleIcon } from "./icons.tsx";
 import { PlayerBar } from "./view_playerbar.tsx";
 import { NowPlaying } from "./view_nowplaying.tsx";
@@ -65,7 +65,7 @@ export const Session: FunctionComponent<{
       <main class="main">
         <MainView rom={rom} engine={engine} table={table} setTable={setTable} settings={settings} setSettings={setSettings} songs={songs} durations={durations} player={player} />
       </main>
-      {showVisualizer && <NowPlaying rom={rom} player={player} songs={songs} />}
+      {showVisualizer && <NowPlaying rom={rom} player={player} songs={songs} defaultReverb={settings.reverb} />}
       <PlayerBar rom={rom} player={player} duration={player.current === null ? 0 : durations[player.current] ?? 0} showVisualizer={showVisualizer} setShowVisualizer={setShowVisualizer} />
     </>
   );
@@ -190,29 +190,29 @@ const MainView: FunctionComponent<{
           <h1 title={rom.name}>{rom.title || rom.name}</h1>
           <div class="hero-meta">
             {rom.code ? `${rom.code} rev${rom.version} · ` : ""}
-            {table === null ? "曲テーブルが見つかりません" : `${playableCount} 曲`}
-            {table !== null && total > 0 && ` · ${measuredAll ? "" : "約 "}${formatTime(total)}`}
+            {table === null ? "No song table found" : `${playableCount} ${playableCount === 1 ? "song" : "songs"}`}
+            {table !== null && total > 0 && ` · ${measuredAll ? "" : "~"}${formatTime(total)}`}
             {table !== null && ` · ${settings.mixerRate} Hz`}
           </div>
           <div class="hero-actions">
-            <button type="button" class="play-big" title={player.playing ? "一時停止" : "再生"} disabled={playableCount === 0} onClick={player.toggle}>
+            <button type="button" class="play-big" title={player.playing ? "Pause (Space)" : "Play (Space)"} disabled={playableCount === 0} onClick={player.toggle}>
               {player.playing ? <PauseIcon size={26} /> : <PlayIcon size={26} />}
             </button>
-            <button type="button" class={player.shuffle ? "icon-button on" : "icon-button"} title="シャッフル (S)" onClick={() => player.setShuffle(!player.shuffle)}>
+            <button type="button" class={player.shuffle ? "icon-button on" : "icon-button"} title="Shuffle (S)" onClick={() => player.setShuffle(!player.shuffle)}>
               <ShuffleIcon size={22} />
             </button>
             <label class="chip">
-              <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.currentTarget.checked)} /> 空の曲を隠す
+              <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.currentTarget.checked)} /> Hide empty songs
             </label>
-            <button type="button" class={showSettings ? "icon-button on" : "icon-button"} title="曲テーブルと再生の設定" onClick={() => setShowSettings(!showSettings)}>
+            <button type="button" class={showSettings ? "icon-button on" : "icon-button"} title="Song table and playback settings" onClick={() => setShowSettings(!showSettings)}>
               <GearIcon size={22} />
             </button>
           </div>
         </div>
       </header>
       {showSettings && <SettingsPanel engine={engine} table={table} setTable={setTable} settings={settings} setSettings={setSettings} />}
-      {player.error && <p class="banner error">書き出せませんでした: {player.error}</p>}
-      {table === null ? <p class="banner">m4a のドライバが見つかりませんでした。曲テーブルの位置が分かっていれば、設定の「曲テーブル」に入れてください。</p> : <SongTable rom={rom} songs={songs} durations={durations} player={player} hideEmpty={hideEmpty} settings={settings} />}
+      {player.error && <p class="banner error">Could not render: {player.error}</p>}
+      {table === null ? <p class="banner">No m4a sound driver was found. If you know where the song table is, enter its address under Settings → Song table.</p> : <SongTable rom={rom} songs={songs} durations={durations} player={player} hideEmpty={hideEmpty} settings={settings} />}
     </>
   );
 };
@@ -239,16 +239,16 @@ const SongTable: FunctionComponent<{ rom: ROM; songs: Song[]; durations: (number
     };
   }, [menu]);
 
-  if (songs.length === 0) return <p class="banner">曲テーブルに曲がありません</p>;
+  if (songs.length === 0) return <p class="banner">The song table has no songs</p>;
 
   return (
     <div class="song-table" role="table">
       <div class="song-row head" role="row">
         <span class="c-num">#</span>
-        <span class="c-title">タイトル</span>
-        <span class="c-tracks">トラック</span>
-        <span class="c-player">プレーヤ</span>
-        <span class="c-time">長さ</span>
+        <span class="c-title">Title</span>
+        <span class="c-tracks">Tracks</span>
+        <span class="c-player">Player</span>
+        <span class="c-time">Length</span>
         <span class="c-more" />
       </div>
       {songs.map((s, i) => {
@@ -267,20 +267,20 @@ const SongTable: FunctionComponent<{ rom: ROM; songs: Song[]; durations: (number
                 </span>
               )}
               {s.playable && (
-                <button type="button" class="row-play" title={isCurrent && player.playing ? "一時停止" : "再生"} onClick={() => (isCurrent ? player.toggle() : player.playIndex(i))}>
+                <button type="button" class="row-play" title={isCurrent && player.playing ? "Pause" : "Play"} onClick={() => (isCurrent ? player.toggle() : player.playIndex(i))}>
                   {isCurrent && player.playing ? <PauseIcon size={16} /> : <PlayIcon size={16} />}
                 </button>
               )}
             </span>
             <span class="c-title">
               <span class="title">{songTitle(i)}</span>
-              {!s.playable && <span class="tag">{s.header ? "空" : "不正"}</span>}
+              {!s.playable && <span class="tag">{s.header ? "empty" : "invalid"}</span>}
             </span>
             <span class="c-tracks">{s.header?.trackCount ?? "-"}</span>
             <span class="c-player">{s.entry.ms}</span>
             <span class="c-time">{s.playable ? (durations[i] === undefined ? "" : formatTime(durations[i]!)) : ""}</span>
             <span class="c-more">
-              <button type="button" class="more icon-button" title="曲の情報と保存" onClick={() => setMenu(menu === i ? null : i)}>
+              <button type="button" class="more icon-button" title="Song info and export" onClick={() => setMenu(menu === i ? null : i)}>
                 <MoreIcon size={18} />
               </button>
               {menu === i && <SongMenu rom={rom} song={s} index={i} settings={settings} close={() => setMenu(null)} />}
@@ -294,19 +294,7 @@ const SongTable: FunctionComponent<{ rom: ROM; songs: Song[]; durations: (number
 
 // 曲の「…」メニュー: 曲ヘッダの情報と WAV での保存
 const SongMenu: FunctionComponent<{ rom: ROM; song: Song; index: number; settings: PlaySettings; close: () => void }> = ({ rom, song, index, settings, close }) => {
-  const h = song.header;
-  const rows: [string, string | number][] = [
-    ["header", hex8(song.entry.header)],
-    ...(h
-      ? [
-        ["tracks", h.trackCount],
-        ["voicegroup", hex8(h.voicegroup)],
-        ["priority", h.priority],
-        ["reverb", h.reverb & 0x80 ? h.reverb & 0x7F : `${settings.reverb} (ROM の既定)`],
-      ] as [string, string | number][]
-      : []),
-    ["player", song.entry.ms],
-  ];
+  const rows = songInfoRows(song, settings.reverb);
 
   const download = () => {
     const r = renderSong(rom.data, song.entry.header, renderOptions(settings));
@@ -334,7 +322,7 @@ const SongMenu: FunctionComponent<{ rom: ROM; song: Song; index: number; setting
       </table>
       {song.playable && (
         <button type="button" class="menu-item" onClick={download}>
-          <DownloadIcon size={16} /> WAV で保存
+          <DownloadIcon size={16} /> Save as WAV
         </button>
       )}
     </div>
@@ -369,7 +357,7 @@ const SettingsPanel: FunctionComponent<{ engine: Engine | null; table: number | 
     <section class="settings">
       <div class="settings-grid">
         <label>
-          <span>曲テーブル</span>
+          <span>Song table</span>
           <span class="row">
             <input
               type="text"
@@ -381,28 +369,28 @@ const SettingsPanel: FunctionComponent<{ engine: Engine | null; table: number | 
               onChange={commit}
               onKeyDown={(e) => e.key === "Enter" && commit()}
             />
-            {engine && table !== engine.songTable && <button type="button" class="ghost small" onClick={() => setTable(engine.songTable)}>検出した位置に戻す</button>}
+            {engine && table !== engine.songTable && <button type="button" class="ghost small" onClick={() => setTable(engine.songTable)}>Reset to detected</button>}
           </span>
         </label>
         <label>
-          <span>ミキサー</span>
+          <span>Mixer</span>
           <select value={settings.mixerRate} onChange={(e) => setSettings({ ...settings, mixerRate: Number(e.currentTarget.value) })}>
             {MIXER_RATES.slice(1).map((r) => <option key={r} value={r}>{r} Hz{r === mode?.mixerRate ? " (ROM)" : ""}</option>)}
           </select>
         </label>
         <div class="field">
-          <span>同時発音数</span>
+          <span>Polyphony</span>
           <NumberStepper label="" value={settings.maxVoices} min={1} max={12} onChange={(v) => setSettings({ ...settings, maxVoices: v })} />
         </div>
         <div class="field">
-          <span>ループ回数</span>
+          <span>Loops</span>
           <NumberStepper label="" value={settings.loops} min={1} max={9} onChange={(v) => setSettings({ ...settings, loops: v })} />
         </div>
       </div>
       <p class="muted small mono">
-        {engine ? <>m4aSongNumStart {hex8(engine.songNumStart)} で検出 / {mode ? `m4aSoundMode ${hex8(mode.raw)} (同時発音数 ${mode.maxChans}, 音量 ${mode.masterVolume}, ${mode.mixerRate} Hz, DAC ${mode.dacBits} bit${mode.reverb & 0x80 ? `, リバーブ ${mode.reverb & 0x7F}` : ""}) / MusicPlayer ${engine.musicPlayers}` : "m4aSoundMode の引数は見つかりませんでした"}</> : "m4a のドライバは見つかりませんでした"}
+        {engine ? <>Detected at m4aSongNumStart {hex8(engine.songNumStart)} / {mode ? `m4aSoundMode ${hex8(mode.raw)} (polyphony ${mode.maxChans}, volume ${mode.masterVolume}, ${mode.mixerRate} Hz, DAC ${mode.dacBits} bit${mode.reverb & 0x80 ? `, reverb ${mode.reverb & 0x7F}` : ""}) / ${engine.musicPlayers} music players` : "m4aSoundMode arguments not found"}</> : "No m4a sound driver found"}
       </p>
-      <p class="muted small">ループ回数は曲データの GOTO で戻った回数で、その回数に来たらフェードアウトします。リバーブは実機と同じ仕組みで掛けますが、実機のミキサー (低い周波数で混ぜて 8 ビットに落とすこと) は再現しておらず、実機より澄んだ音になります。</p>
+      <p class="muted small">Loops is how many times the song jumps back with GOTO before it fades out. Reverb works the same way as on the hardware, but the hardware mixer (mixing at a low rate and reducing to 8 bits) is not reproduced, so it sounds cleaner than the real thing.</p>
     </section>
   );
 };
