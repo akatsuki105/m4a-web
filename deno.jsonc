@@ -1,15 +1,14 @@
 {
   "compilerOptions": {
     "jsx": "react-jsx",
-    "jsxImportSource": "preact"
+    "jsxImportSource": "preact",
+    "lib": ["dom", "dom.iterable", "esnext"]
   },
   "imports": {
     "preact": "npm:preact@^10"
   },
   "fmt": {
-    "options": {
-      "lineWidth": 1000 // I hate line wrapping
-    }
+    "lineWidth": 1000 // I hate line wrapping
   },
   "tasks": {
     "dev:bundle": "deno bundle --sourcemap --watch --platform=browser index.tsx -o bundle.js",
