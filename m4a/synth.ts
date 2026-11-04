@@ -116,6 +116,13 @@ export class Voice {
   private pos = 0; // 再生位置 (DirectSound: サンプル, CGB: 周期の割合)
   private lfsr = 0x7FFF;
   private first = true;
+  // 矩形波1の周波数スイープ (NR10). ply_note が音色の panSweep から決め、CgbSound が鳴らし始めに NR10 に書く
+  private sweepPeriod = 0; // 1 回変えるまでの秒数 (0 ならスイープしない)
+  private sweepShift = 0;
+  private sweepDown = false;
+  private sweepReg = -1; // スイープ中の周波数レジスタ (0-2047), 鳴らし始めに決める
+  private sweepClock = 0;
+  private silenced = false; // スイープで周波数が上限を超えて、ハードウェアが音を止めた
 
   constructor(
     readonly track: TrackOut,
@@ -138,7 +145,33 @@ export class Voice {
       this.wave = w;
     } else if (this.kind === 3) {
       this.prog = readProgWave(rom, tone.wav);
+    } else if (this.kind === 1) {
+      // ply_note: panSweep の bit7 が立っている (パンとして使う) か、スイープの間隔 (bit4-6) が 0 なら 0x08 (スイープしない)
+      const ps = tone.panSweep;
+      const sw = ps & 0x80 || (ps & 0x70) === 0 ? 0x08 : ps;
+      const period = (sw >> 4) & 7, shift = sw & 7;
+      if (period && shift) { // 間隔が 0 なら変えない, ずらす量が 0 なら書き戻さない (GB と同じ)
+        this.sweepPeriod = period / 128; // スイープは 128 Hz で数える
+        this.sweepShift = shift;
+        this.sweepDown = (sw & 8) !== 0;
+      }
     }
+  }
+
+  // スイープを 1 回進める. 周波数が上限 (2047) を超えたらハードウェアが音を止めるので false
+  private sweepStep(): boolean {
+    const d = this.sweepReg >> this.sweepShift;
+    if (this.sweepDown) {
+      this.sweepReg -= d;
+      return true;
+    }
+    const next = this.sweepReg + d;
+    if (next > 2047 || next + (next >> this.sweepShift) > 2047) { // 書き戻したあとにもう一度計算して確かめる
+      this.silenced = true;
+      return false;
+    }
+    this.sweepReg = next;
+    return true;
   }
 
   get active() {
@@ -264,13 +297,21 @@ export class Voice {
       const r = nr43 & 7, s = nr43 >> 4;
       return 524288 / (r === 0 ? 0.5 : r) / Math.pow(2, s + 1);
     }
-    const reg = cgbFreqReg(Math.max(0, key), fine);
+    let reg = cgbFreqReg(Math.max(0, key), fine);
+    if (this.sweepPeriod) {
+      // スイープ中はハードウェアが変えた周波数で鳴る (鳴らし始めの周波数から変えていく)
+      if (this.sweepReg < 0) {
+        this.sweepReg = reg;
+        if (!this.sweepDown && reg + (reg >> this.sweepShift) > 2047) this.silenced = true; // 鳴らし始めにも一度確かめる
+      }
+      reg = this.sweepReg;
+    }
     return (this.kind === 3 ? 65536 : 131072) / (2048 - reg);
   }
 
   // 今の大きさ (0-1): エンベロープ × ベロシティ × トラックの音量. 画面に出すためのもので、音は作らない
   level(): number {
-    if (this.state === "off") return 0;
+    if (this.state === "off" || this.silenced) return 0;
     const [r, l] = this.volumes();
     const env = this.kind === 0 ? this.env / 255 : this.env / 15;
     return Math.min(1, env * Math.max(r, l) / 255);
@@ -290,6 +331,7 @@ export class Voice {
     if (this.state === "off") return;
     const [r, l] = this.volumes();
     const step = this.rate() / sampleRate;
+    if (this.silenced) return; // エンベロープは m4a 側で進むが、音は出ない
     if (this.kind === 0) {
       const w = this.wave!;
       const gr = (this.env * r) / 65536 / 128 * gain, gl = (this.env * l) / 65536 / 128 * gain;
@@ -353,11 +395,20 @@ export class Voice {
       }
     } else {
       const duty = DUTY[this.tone.wav & 3];
+      let st = step;
       for (let i = 0; i < count; i++) {
+        if (this.sweepPeriod) {
+          this.sweepClock += 1 / sampleRate;
+          if (this.sweepClock >= this.sweepPeriod) {
+            this.sweepClock -= this.sweepPeriod;
+            if (!this.sweepStep()) break;
+            st = this.rate() / sampleRate;
+          }
+        }
         const s = pos < duty ? 1 : -1;
         left[offset + i] += s * al;
         right[offset + i] += s * ar;
-        pos = (pos + step) % 1;
+        pos = (pos + st) % 1;
       }
     }
     this.pos = pos;
