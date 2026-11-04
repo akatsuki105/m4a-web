@@ -10,7 +10,7 @@ import { type PlaySettings, Session } from "./view_session.tsx";
 import { PlayerBar } from "./view_playerbar.tsx";
 
 // ROM の設定が読めなかったときの値 (m4a の SoundInit の既定と同じ)
-const DEFAULT_SETTINGS: PlaySettings = { mixerRate: 13379, maxVoices: 12, loops: 1 };
+const DEFAULT_SETTINGS: PlaySettings = { mixerRate: 13379, maxVoices: 12, loops: 1, reverb: 0 };
 
 const VISUALIZER_KEY = "m4a-web.visualizer";
 const loadShowVisualizer = () => {
@@ -60,6 +60,7 @@ const App = () => {
       mixerRate: engine?.soundMode?.mixerRate ?? DEFAULT_SETTINGS.mixerRate,
       maxVoices: engine?.soundMode?.maxChans ?? DEFAULT_SETTINGS.maxVoices,
       loops: settings.loops, // ループ回数は ROM によらないので引き継ぐ
+      reverb: engine?.soundMode && engine.soundMode.reverb & 0x80 ? engine.soundMode.reverb & 0x7F : DEFAULT_SETTINGS.reverb, // m4aSoundMode は bit7 が立っているときだけリバーブを決める
     });
     setError(null);
   };

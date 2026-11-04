@@ -174,8 +174,12 @@ export class SongPlayer {
     this.voices = this.voices.filter((v) => v.active);
   }
 
-  mix(left: Float32Array, right: Float32Array, offset: number, count: number, sampleRate: number, gain = 1) {
-    for (const v of this.voices) v.mix(left, right, offset, count, sampleRate, gain);
+  // which: DirectSound だけ / CGB だけ / 両方 (リバーブは DirectSound にだけ掛かるので分けて混ぜられるようにする)
+  mix(left: Float32Array, right: Float32Array, offset: number, count: number, sampleRate: number, gain = 1, which: "all" | "direct" | "cgb" = "all") {
+    for (const v of this.voices) {
+      if (which === "direct" ? v.kind !== 0 : which === "cgb" ? v.kind === 0 : false) continue;
+      v.mix(left, right, offset, count, sampleRate, gain);
+    }
     this.voices = this.voices.filter((v) => v.active);
   }
 

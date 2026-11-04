@@ -53,6 +53,7 @@ const drawSpectrum = (canvas: HTMLCanvasElement, bins: Uint8Array<ArrayBuffer>, 
   const ctx = canvas.getContext("2d")!;
   const W = canvas.width, H = canvas.height;
   ctx.clearRect(0, 0, W, H);
+  if (W < BARS * 2 || H === 0) return; // 隠れている (狭い画面で表示しないとき) か狭すぎる
   const analyser = peekAnalyser();
   if (analyser && playback.playing) analyser.getByteFrequencyData(bins);
   else bins.fill(0);

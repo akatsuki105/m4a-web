@@ -10,7 +10,8 @@ export type RenderOptions = {
   maxSeconds?: number; // 最大の長さ (既定 600 秒)
   gain?: number; // 全体の音量 (既定 0.8)
   maxDirectVoices?: number; // DirectSound の同時発音数 (既定 12)
-  mixerRate?: number; // ミキサーのサンプリング周波数 (m4aSoundMode), 音程を変えない音色の速さに効く (既定 13379)
+  mixerRate?: number; // ミキサーのサンプリング周波数 (m4aSoundMode), 音程を変えない音色の速さとリバーブの遅れに効く (既定 13379)
+  reverb?: number; // 曲ヘッダがリバーブを指定していないときのリバーブ (0-127, m4aSoundMode で決めた値, 既定 0)
   trace?: boolean; // トラックごとに鳴っている音をフレームごとに記録する (Rendered.trace)
 };
 
@@ -28,18 +29,35 @@ export type Rendered = {
   left: Float32Array<ArrayBuffer>;
   right: Float32Array<ArrayBuffer>;
   looped: boolean; // ループしたのでフェードアウトで終えた
+  reverb: number; // 掛けたリバーブ (0 なら掛けていない)
   trace?: Trace;
 };
 
 const TRACE_KEYS = 8;
 
-// 1 フレームずつ進める共通の部分. onFrame で音を作る (または進める) と、終わりかどうかを返す
-// フェードアウトのゲインを渡す (フェード中でなければ 1)
-const run = (player: SongPlayer, opts: RenderOptions, onFrame: (fade: number) => void) => {
+// リバーブ (SoundMainRAM の applyReverb)
+// ミキサーは pcmDmaPeriod フレーム分のリングバッファに書いていて、フレームごとに混ぜる前に、そのフレームの場所を
+// (pcmDmaPeriod フレーム前の左 + 右 + pcmDmaPeriod - 1 フレーム前の左 + 右) * reverb / 512 で埋める (左右とも同じ値)
+// 実機の PCM バッファに入るのは DirectSound だけなので、CGB には掛からない
+const PCM_DMA_BUF_SIZE = 1584;
+
+// 曲ヘッダの reverb の bit7 が立っていれば、MPlayStart が m4aSoundMode でその値にする. 立っていなければ前からの値のまま
+export const songReverb = (headerReverb: number, fallback = 0) => (headerReverb & 0x80 ? headerReverb & 0x7F : fallback);
+
+// pcmDmaPeriod: 何フレーム前の音を混ぜ直すか
+export const reverbDelayFrames = (mixerRate: number) => {
+  const samplesPerVBlank = Math.round(mixerRate / FRAME_RATE); // gPcmSamplesPerVBlankTable の値 (21024 Hz なら 352)
+  return Math.max(2, Math.floor(PCM_DMA_BUF_SIZE / samplesPerVBlank));
+};
+
+// 1 フレームずつ進める共通の部分. onFrame で音を作る (または進める). フェードアウトのゲインを渡す (フェード中でなければ 1)
+// tail: 音が鳴り終わったあとに続けるフレーム数 (リバーブの響きを残すため)
+const run = (player: SongPlayer, opts: RenderOptions, tail: number, onFrame: (fade: number) => void) => {
   const loops = opts.loops ?? 1;
   const fadeFrames = Math.round((opts.fadeSeconds ?? 4) * FRAME_RATE);
   const maxFrames = Math.round((opts.maxSeconds ?? 600) * FRAME_RATE);
   let fadeLeft = -1; // フェードアウトの残りフレーム数
+  let tailLeft = -1;
   let looped = false;
   let frames = 0;
   while (frames < maxFrames) {
@@ -51,16 +69,26 @@ const run = (player: SongPlayer, opts: RenderOptions, onFrame: (fade: number) =>
     onFrame(fadeLeft < 0 ? 1 : fadeLeft / fadeFrames);
     frames++;
     if (fadeLeft >= 0 && --fadeLeft <= 0) break;
-    if (player.finished) break;
+    if (tailLeft >= 0 && --tailLeft <= 0) break;
+    if (tailLeft < 0 && player.finished) {
+      if (tail <= 0) break;
+      tailLeft = tail;
+    }
   }
   return { frames, looped };
 };
+
+// リバーブを掛けるときに、鳴り終わってから残す長さ: 遅れの 8 回分 (1 回ごとにおよそ reverb / 128 倍になるので、十分小さくなる)
+const tailFrames = (reverb: number, delay: number) => (reverb > 0 ? delay * 8 : 0);
 
 // headerAddress は SongHeader の GBA アドレス
 export const renderSong = (rom: DataView, headerAddress: number, opts: RenderOptions = {}): Rendered => {
   const sampleRate = opts.sampleRate ?? 44100;
   const gain = opts.gain ?? 0.8;
   const player = new SongPlayer(rom, headerAddress, { maxDirectVoices: opts.maxDirectVoices, mixerRate: opts.mixerRate });
+  const reverb = songReverb(player.header.reverb, opts.reverb);
+  const delay = reverbDelayFrames(opts.mixerRate ?? 13379);
+  const history: [Float32Array, Float32Array][] = []; // DirectSound の出力 (リバーブ込み), 直近 delay フレーム分, 古い順
 
   const chunks: [Float32Array, Float32Array][] = [];
   let chunkL = new Float32Array(sampleRate), chunkR = new Float32Array(sampleRate);
@@ -79,10 +107,28 @@ export const renderSong = (rom: DataView, headerAddress: number, opts: RenderOpt
     keys = k, levels = l;
   };
 
-  const { looped } = run(player, opts, (fade) => {
+  const { looped } = run(player, opts, tailFrames(reverb, delay), (fade) => {
     carry += samplesPerFrame;
     const n = Math.floor(carry);
     carry -= n;
+
+    // このフレームの DirectSound: リバーブで埋めてから音を足す
+    const dl = new Float32Array(n), dr = new Float32Array(n);
+    if (reverb > 0 && history.length === delay) {
+      const [al, ar] = history[0], [bl, br] = history[1]; // delay フレーム前と delay - 1 フレーム前
+      const k = reverb / 512;
+      for (let i = 0; i < n; i++) {
+        const ia = Math.min(i, al.length - 1), ib = Math.min(i, bl.length - 1); // フレームの長さは 1 サンプル違うことがある
+        dl[i] = dr[i] = (al[ia] + ar[ia] + bl[ib] + br[ib]) * k;
+      }
+    }
+    player.mix(dl, dr, 0, n, sampleRate, gain * fade, "direct");
+    if (reverb > 0) {
+      history.push([dl, dr]);
+      if (history.length > delay) history.shift();
+    }
+
+    // CGB はリバーブを通さずに足す
     let written = 0;
     while (written < n) {
       if (used === chunkL.length) {
@@ -91,7 +137,9 @@ export const renderSong = (rom: DataView, headerAddress: number, opts: RenderOpt
         used = 0;
       }
       const k = Math.min(n - written, chunkL.length - used);
-      player.mix(chunkL, chunkR, used, k, sampleRate, gain * fade);
+      chunkL.set(dl.subarray(written, written + k), used);
+      chunkR.set(dr.subarray(written, written + k), used);
+      player.mix(chunkL, chunkR, used, k, sampleRate, gain * fade, "cgb");
       used += k, written += k;
     }
     total += n;
@@ -114,7 +162,7 @@ export const renderSong = (rom: DataView, headerAddress: number, opts: RenderOpt
     right[i] = Math.max(-1, Math.min(1, right[i]));
   }
   const trace = opts.trace ? { frames: traced, tracks, keysPerTrack: TRACE_KEYS, keys: keys.slice(0, traced * tracks * TRACE_KEYS), levels: levels.slice(0, traced * tracks) } : undefined;
-  return { sampleRate, left, right, looped, trace };
+  return { sampleRate, left, right, looped, reverb, trace };
 };
 
 export type Measured = {
@@ -125,6 +173,8 @@ export type Measured = {
 // 音を作らずにシーケンスだけ進めて、書き出したときの長さを測る (renderSong よりずっと速い)
 export const measureSong = (rom: DataView, headerAddress: number, opts: RenderOptions = {}): Measured => {
   const player = new SongPlayer(rom, headerAddress, { maxDirectVoices: opts.maxDirectVoices, mixerRate: opts.mixerRate });
-  const { frames, looped } = run(player, opts, () => player.advance(1 / FRAME_RATE));
+  const reverb = songReverb(player.header.reverb, opts.reverb);
+  const tail = tailFrames(reverb, reverbDelayFrames(opts.mixerRate ?? 13379));
+  const { frames, looped } = run(player, opts, tail, () => player.advance(1 / FRAME_RATE));
   return { seconds: frames / FRAME_RATE, looped };
 };

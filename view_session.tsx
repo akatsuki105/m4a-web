@@ -18,7 +18,10 @@ export type PlaySettings = {
   mixerRate: number; // ミキサーのサンプリング周波数 (Hz)
   maxVoices: number; // DirectSound の同時発音数
   loops: number; // GOTO で戻った回数がこれになったらフェードアウトする
+  reverb: number; // 曲ヘッダがリバーブを指定していないときのリバーブ (ROM の m4aSoundMode の値, 0-127)
 };
+
+export const renderOptions = (s: PlaySettings): RenderOptions => ({ loops: s.loops, mixerRate: s.mixerRate, maxDirectVoices: s.maxVoices, reverb: s.reverb });
 
 const tryHeader = (rom: DataView, address: number): SongHeader | null => {
   try {
@@ -51,8 +54,8 @@ export const Session: FunctionComponent<{
     });
   }, [rom, table]);
 
-  const opts: RenderOptions = { loops: settings.loops, mixerRate: settings.mixerRate, maxDirectVoices: settings.maxVoices };
-  const renderKey = `${settings.loops}/${settings.mixerRate}/${settings.maxVoices}`;
+  const opts = renderOptions(settings);
+  const renderKey = `${settings.loops}/${settings.mixerRate}/${settings.maxVoices}/${settings.reverb}`;
   const player = usePlayer(rom, songs, opts, renderKey);
   const durations = useDurations(rom, songs, opts, renderKey);
   useShortcuts(player);
@@ -299,14 +302,14 @@ const SongMenu: FunctionComponent<{ rom: ROM; song: Song; index: number; setting
         ["tracks", h.trackCount],
         ["voicegroup", hex8(h.voicegroup)],
         ["priority", h.priority],
-        ["reverb", h.reverb & 0x80 ? h.reverb & 0x7F : "-"],
+        ["reverb", h.reverb & 0x80 ? h.reverb & 0x7F : `${settings.reverb} (ROM の既定)`],
       ] as [string, string | number][]
       : []),
     ["player", song.entry.ms],
   ];
 
   const download = () => {
-    const r = renderSong(rom.data, song.entry.header, { loops: settings.loops, mixerRate: settings.mixerRate, maxDirectVoices: settings.maxVoices });
+    const r = renderSong(rom.data, song.entry.header, renderOptions(settings));
     const url = URL.createObjectURL(new Blob([encodeWav(r.sampleRate, r.left, r.right)], { type: "audio/wav" }));
     const a = document.createElement("a");
     a.href = url;
@@ -399,7 +402,7 @@ const SettingsPanel: FunctionComponent<{ engine: Engine | null; table: number | 
       <p class="muted small mono">
         {engine ? <>m4aSongNumStart {hex8(engine.songNumStart)} で検出 / {mode ? `m4aSoundMode ${hex8(mode.raw)} (同時発音数 ${mode.maxChans}, 音量 ${mode.masterVolume}, ${mode.mixerRate} Hz, DAC ${mode.dacBits} bit${mode.reverb & 0x80 ? `, リバーブ ${mode.reverb & 0x7F}` : ""}) / MusicPlayer ${engine.musicPlayers}` : "m4aSoundMode の引数は見つかりませんでした"}</> : "m4a のドライバは見つかりませんでした"}
       </p>
-      <p class="muted small">ループ回数は曲データの GOTO で戻った回数で、その回数に来たらフェードアウトします。実機のミキサーやリバーブは再現しておらず、それらしく鳴らす程度です。</p>
+      <p class="muted small">ループ回数は曲データの GOTO で戻った回数で、その回数に来たらフェードアウトします。リバーブは実機と同じ仕組みで掛けますが、実機のミキサー (低い周波数で混ぜて 8 ビットに落とすこと) は再現しておらず、実機より澄んだ音になります。</p>
     </section>
   );
 };
