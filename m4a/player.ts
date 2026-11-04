@@ -179,6 +179,30 @@ export class SongPlayer {
     this.voices = this.voices.filter((v) => v.active);
   }
 
+  // 音を作らずに seconds 秒分進める (mix の代わり, 曲の長さを測るとき用)
+  advance(seconds: number) {
+    for (const v of this.voices) v.advance(seconds);
+    this.voices = this.voices.filter((v) => v.active);
+  }
+
+  get trackCount() {
+    return this.tracks.length;
+  }
+
+  // 今鳴っている音をトラックごとに書き出す (画面に出すため)
+  // keys[(base + track) * keysPerTrack + n]: シーケンスに書かれたキー (無ければ 0xFF), levels[base + track]: 一番大きい音の大きさ (0-255)
+  snapshot(keys: Uint8Array, levels: Uint8Array, base: number, keysPerTrack: number) {
+    const count = new Uint8Array(this.tracks.length);
+    for (const v of this.voices) {
+      const t = this.tracks.indexOf(v.track as Track);
+      if (t < 0) continue;
+      const level = Math.round(v.level() * 255);
+      if (level === 0) continue;
+      levels[base + t] = Math.max(levels[base + t], level);
+      if (count[t] < keysPerTrack) keys[(base + t) * keysPerTrack + count[t]++] = v.midiKey;
+    }
+  }
+
   private u8(o: number) {
     return o < this.rom.byteLength ? this.rom.getUint8(o) : FINE;
   }

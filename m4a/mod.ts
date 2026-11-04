@@ -13,5 +13,5 @@ export * from "./data.ts";
 export * from "./detect.ts";
 export { type PlayerOptions, SongPlayer } from "./player.ts";
 export { FRAME_RATE } from "./synth.ts";
-export { type Rendered, type RenderOptions, renderSong } from "./render.ts";
+export { type Measured, measureSong, type Rendered, type RenderOptions, renderSong, type Trace } from "./render.ts";
 export { encodeWav } from "./wav.ts";

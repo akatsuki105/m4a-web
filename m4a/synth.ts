@@ -268,6 +268,23 @@ export class Voice {
     return (this.kind === 3 ? 65536 : 131072) / (2048 - reg);
   }
 
+  // 今の大きさ (0-1): エンベロープ × ベロシティ × トラックの音量. 画面に出すためのもので、音は作らない
+  level(): number {
+    if (this.state === "off") return 0;
+    const [r, l] = this.volumes();
+    const env = this.kind === 0 ? this.env / 255 : this.env / 15;
+    return Math.min(1, env * Math.max(r, l) / 255);
+  }
+
+  // 音を作らずに seconds 秒分だけ再生位置を進める (曲の長さを測るとき用)
+  // 繰り返さない波形の終わりに着いたら止まる, というところだけ mix と同じにする
+  advance(seconds: number) {
+    if (this.state === "off" || this.kind !== 0) return;
+    const w = this.wave!;
+    this.pos += this.rate() * seconds;
+    if (this.pos >= w.size && !(w.loop && w.loopStart < w.size)) this.state = "off";
+  }
+
   // sampleRate で count サンプル分を left / right に足す
   mix(left: Float32Array, right: Float32Array, offset: number, count: number, sampleRate: number, gain: number) {
     if (this.state === "off") return;
