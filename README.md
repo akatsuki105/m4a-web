@@ -5,8 +5,8 @@ GBA の ROM から MP2K (m4a, いわゆる Sappy) のサウンドドライバを
 ## 使い方
 
 - 開いた ROM はブラウザの中 (IndexedDB) に保存し、左のライブラリから開き直せます。同じ ROM はファイル名が違っても 1 つにまとめます (中身の SHA-1 で見分けます)。`?rom=` で開いたものは保存しません。
-- 曲テーブルの位置・ミキサー・同時発音数・ループ回数は、見出しの ⚙ (Song table / Mixer / Polyphony / Loops) で変えられます。曲テーブルの位置は ROM から自動で探しますが、見つからないときや違う場所を見たいときはアドレスを入れてください (`0x0825E56C` のような GBA のアドレスでも、`25E56C` のような ROM のオフセットでもかまいません)。
 - 今の曲は URL の `#番号` に入ります。`?rom=<URL>` で ROM をパス指定すると、ドロップしなくてもその ROM を開きます。
+- 曲テーブルの位置・ミキサー・同時発音数・ループ回数は、見出しの ⚙ (Song table / Mixer / Polyphony / Loops) で変えられます。曲テーブルの位置は ROM から自動で探しますが、見つからないときや違う場所を見たいときはアドレスを入れてください (`0x0825E56C` のような GBA のアドレスでも、`25E56C` のような ROM のオフセットでもかまいません)。
 
 ### キーボード
 
@@ -27,18 +27,31 @@ GBA の ROM から MP2K (m4a, いわゆる Sappy) のサウンドドライバを
 - 実機のミキサー (ミキサーの周波数で混ぜて 8 ビットに落とすこと) は再現しておらず、44100 Hz・浮動小数点で混ぜます。そのため実機より澄んだ音になり、ミキサーの周波数が低いゲームほど違いが大きくなります。
 - リバーブは実機 (`SoundMainRAM`) と同じ仕組み (数フレーム前の出力を混ぜ直す) で掛けますが、8 ビットでの丸めはしていません。実機と同じく、CGB の音には掛けません。
 
-## Build
+## Build & Dev
 
 ```sh
+# Build
 $ deno task bundle
-```
 
-## Dev
-
-```sh
+# Dev
 $ deno task dev # http://localhost:8080/
 ```
+
+Deploy は `.github/workflows/pages.yml` 参照
 
 ## 参考にしたもの
 
 - [GBA Mus Ripper](https://github.com/berg8793/gba-mus-ripper) (Bregalad さん、CaptainSwag101 さん、berg8793 さん): 同梱の sappy_detector (検出の処理は loveemu さんによるもの) の、`m4aSongNumStart` の機械語から曲テーブルとドライバの設定を探す方法を参考にしました。コードは共有していません。
+
+## ライセンス
+
+MIT License です。全文は [LICENSE](LICENSE) を参照してください。
+
+## サードパーティのライセンス
+
+| ソフトウェア                                 | ライセンス  | 著作権者                                |
+| -------------------------------------------- | ----------- | --------------------------------------- |
+| [preact](https://github.com/preactjs/preact) | MIT License | Copyright (c) 2015-present Jason Miller |
+
+ライセンスの全文は [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt) を参照してください。
+

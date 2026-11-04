@@ -1,0 +1,59 @@
+# main に push したら、バンドルして GitHub Pages に公開する
+# 公開するのは index.html, bundle.js, THIRD_PARTY_LICENSES.txt だけ (ROM は載せない)
+# リポジトリの Settings → Pages → Build and deployment の Source を「GitHub Actions」にしておく必要がある
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 公開が重なったら新しい方だけを残す (公開の途中のものは止めない)
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.9.x
+
+      - name: Check
+        run: deno check index.tsx
+
+      - name: Bundle
+        run: deno task bundle
+
+      # bundle.js には preact (MIT) が入るので、先頭にライセンスの全文をコメントで付け、ファイルとしても一緒に置く
+      - name: Collect files
+        run: |
+          mkdir _site
+          { printf '/*!\n'; cat THIRD_PARTY_LICENSES.txt; printf '*/\n'; cat bundle.js; } > _site/bundle.js
+          cp index.html THIRD_PARTY_LICENSES.txt _site/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
